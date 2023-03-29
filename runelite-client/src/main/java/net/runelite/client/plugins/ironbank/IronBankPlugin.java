@@ -1,7 +1,12 @@
 package net.runelite.client.plugins.ironbank;
 
 import java.awt.image.BufferedImage;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +17,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.google.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
@@ -72,13 +79,39 @@ public class IronBankPlugin extends Plugin {
     }
 
 
-    private void saveBankItems(List<Item> bankItems) {
-        Gson gson = new Gson();
-        String serializedBankItems = gson.toJson(bankItems);
+    private void sendBankItems(String serializedBankItems) {
+        String apiUrl = "localhost:8080/api/bank-items";
+
         try {
-            Files.write(getDataFilePath(), serializedBankItems.getBytes(StandardCharsets.UTF_8));
+            Gson gson = new Gson();
+            URL url = new URL(apiUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json; utf-8");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setDoOutput(true);
+            String playerName = client.getLocalPlayer().getName();
+            JsonObject requestBody = new JsonObject();
+            requestBody.addProperty("player_name", playerName);
+            JsonArray bankItemsJsonArray = gson.toJsonTree(serializedBankItems).getAsJsonArray();
+            requestBody.add("bank_items", bankItemsJsonArray);
+            String serializedRequestBody = gson.toJson(requestBody);
+
+            try (OutputStream outputStream = connection.getOutputStream()) {
+                byte[] input = serializedRequestBody.getBytes(StandardCharsets.UTF_8);
+                outputStream.write(input, 0, input.length);
+            }
+
+            try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                StringBuilder response = new StringBuilder();
+                String responseLine;
+                while ((responseLine = bufferedReader.readLine()) != null) {
+                    response.append(responseLine.trim());
+                }
+                System.out.println("Response from server: " + response.toString());
+            }
         } catch (IOException e) {
-            log.warn("Failed to save bank items", e);
+            System.out.println("Error sending bank items: " + e.getMessage());
         }
     }
 
@@ -103,8 +136,8 @@ public class IronBankPlugin extends Plugin {
     @Subscribe
     public void onWidgetLoaded(WidgetLoaded event) {
         if (event.getGroupId() == WidgetID.BANK_GROUP_ID) {
-            List<Item> bankItems = getBankItems();
-            for (Item item : bankItems) {
+            List<BankItem> bankItems = getBankItems();
+            for (BankItem item : bankItems) {
                 ItemComposition itemComposition = client.getItemDefinition(item.getId());
                 String itemName = itemComposition.getName();
                 int itemId = item.getId();
@@ -112,7 +145,9 @@ public class IronBankPlugin extends Plugin {
 
                 System.out.println("Item ID: " + itemId + ", Item Name: " + itemName + ", Quantity: " + itemQuantity);
             }
-            saveBankItems(bankItems);
+            Gson gson = new Gson();
+            String serializedBankItems = gson.toJson(bankItems);
+            sendBankItems(serializedBankItems);
         }
     }
 
@@ -129,14 +164,20 @@ public class IronBankPlugin extends Plugin {
         clientToolbar.removeNavigation(navButton);
     }
 
-    private List<Item> getBankItems() {
+    private List<BankItem> getBankItems() {
         Widget bankItemContainer = client.getWidget(WidgetInfo.BANK_ITEM_CONTAINER);
         if (bankItemContainer == null) {
             return Collections.emptyList();
         }
         return Arrays.stream(bankItemContainer.getDynamicChildren())
-                .map(widget -> new Item(widget.getItemId(), widget.getItemQuantity()))
                 .filter(item -> item.getId() >= 0)
+                .map(widget -> {
+                    int itemId = widget.getItemId();
+                    ItemComposition itemComposition = client.getItemDefinition(itemId);
+                    String itemName = itemComposition.getName();
+                    int itemQuantity = widget.getItemQuantity();
+                    return new BankItem(itemId, itemQuantity, itemName);
+                })
                 .collect(Collectors.toList());
     }
 

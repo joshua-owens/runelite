@@ -59,6 +59,10 @@ public class IronBankSharingPanel extends PluginPanel {
         List<Item> filteredItems = allItems.stream()
                 .filter(item -> client.getItemDefinition(item.getId()).getName().toLowerCase().contains(searchText))
                 .collect(Collectors.toList());
+
+
+
+
         updateItems(client, filteredItems);
     }
 
@@ -72,16 +76,18 @@ public class IronBankSharingPanel extends PluginPanel {
             allItems = items;
         }
 
-        itemContainer.removeAll();
-        for (Item item : items) {
-            BufferedImage image = getImage(itemManager, item.getId());
-            ItemComposition itemComposition = client.getItemDefinition(item.getId());
-            String description = itemComposition.getName() + " x" + item.getQuantity();
-            ItemPanel itemPanel = new ItemPanel(image, description);
-            itemContainer.add(itemPanel);
-        }
-        itemContainer.revalidate();
-        itemContainer.repaint();
+//        itemContainer.removeAll();
+//        for (Item item : items) {
+//            BufferedImage image = getImage(itemManager, item.getId());
+//            ItemComposition itemComposition = client.getItemDefinition(item.getId());
+//            if (itemComposition != null) {
+//                String description = itemComposition.getName() + " x" + item.getQuantity();
+//                ItemPanel itemPanel = new ItemPanel(image, description);
+//                itemContainer.add(itemPanel);
+//            }
+//        }
+//        itemContainer.revalidate();
+//        itemContainer.repaint();
     }
 
 

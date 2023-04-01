@@ -80,7 +80,8 @@ public class IronBankPlugin extends Plugin {
 
 
     private void sendBankItems(String serializedBankItems) {
-        String apiUrl = "localhost:8080/api/bank-items";
+        System.out.println(serializedBankItems);
+        String apiUrl = "http://localhost:8000/api/bank-items/";
 
         try {
             Gson gson = new Gson();
@@ -93,7 +94,8 @@ public class IronBankPlugin extends Plugin {
             String playerName = client.getLocalPlayer().getName();
             JsonObject requestBody = new JsonObject();
             requestBody.addProperty("player_name", playerName);
-            JsonArray bankItemsJsonArray = gson.toJsonTree(serializedBankItems).getAsJsonArray();
+            JsonArray bankItemsJsonArray = gson.fromJson(serializedBankItems, JsonArray.class);
+
             requestBody.add("bank_items", bankItemsJsonArray);
             String serializedRequestBody = gson.toJson(requestBody);
 
@@ -170,7 +172,6 @@ public class IronBankPlugin extends Plugin {
             return Collections.emptyList();
         }
         return Arrays.stream(bankItemContainer.getDynamicChildren())
-                .filter(item -> item.getId() >= 0)
                 .map(widget -> {
                     int itemId = widget.getItemId();
                     ItemComposition itemComposition = client.getItemDefinition(itemId);
@@ -178,6 +179,7 @@ public class IronBankPlugin extends Plugin {
                     int itemQuantity = widget.getItemQuantity();
                     return new BankItem(itemId, itemQuantity, itemName);
                 })
+                .filter(item -> item.getId() >= 0 && item.getQuantity() != 0 && client.getItemDefinition(item.getId()).getName() != null)
                 .collect(Collectors.toList());
     }
 
